@@ -43,3 +43,16 @@ gnome-extensions prefs website-monitor@lefred
 
 For development, changes can be tested in a nested GNOME Shell session or by
 logging out and back in on Wayland.
+
+## Screenshots
+
+<img width="718" height="849" alt="gnome-shell-monito-site01" src="https://github.com/user-attachments/assets/a40a5148-343c-4a97-aa0f-4896bda4f92f" />
+
+<img width="718" height="849" alt="gnome-shell-monito-site02" src="https://github.com/user-attachments/assets/7b4d72c8-64f3-4f63-8b5d-47a844ccbfbf" />
+
+<img width="263" height="227" alt="gnome-shell-monito-site03" src="https://github.com/user-attachments/assets/d20659b2-c70b-4c7f-8814-c05caeae3cb8" />
+
+<img width="718" height="333" alt="gnome-shell-monito-site04" src="https://github.com/user-attachments/assets/db21baff-e061-492c-af36-aca879d767e4" />
+
+
+
