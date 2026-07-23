@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.website-monitor"
+          path="/org/gnome/shell/extensions/website-monitor/">
+    <key name="monitor-enabled" type="b">
+      <default>true</default>
+      <summary>Enable website monitoring</summary>
+    </key>
+    <key name="website-url" type="s">
+      <default>'https://example.com'</default>
+      <summary>Website URL</summary>
+    </key>
+    <key name="slow-threshold-enabled" type="b">
+      <default>true</default>
+      <summary>Enable slow response detection</summary>
+    </key>
+    <key name="slow-threshold-ms" type="u">
+      <default>2000</default>
+      <range min="100" max="60000"/>
+      <summary>Slow response threshold in milliseconds</summary>
+    </key>
+    <key name="check-interval" type="u">
+      <default>60</default>
+      <range min="5" max="86400"/>
+      <summary>Seconds between checks</summary>
+    </key>
+    <key name="failure-threshold" type="u">
+      <default>3</default>
+      <range min="1" max="100"/>
+      <summary>Consecutive failed checks before alerting</summary>
+    </key>
+    <key name="request-timeout" type="u">
+      <default>15</default>
+      <range min="1" max="120"/>
+      <summary>HTTP request timeout in seconds</summary>
+    </key>
+    <key name="alert-sound-uri" type="s">
+      <default>''</default>
+      <summary>URI of the custom MP3 alert sound</summary>
+      <description>Empty uses the default desktop warning sound.</description>
+    </key>
+    <key name="test-alert-request" type="u">
+      <default>0</default>
+      <summary>Alert test request counter</summary>
+      <description>Changing this value asks the running extension to show a test alert.</description>
+    </key>
+  </schema>
+</schemalist>
