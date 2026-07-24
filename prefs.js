@@ -129,6 +129,46 @@ export default class WebsiteMonitorPreferences extends ExtensionPreferences {
         ));
         checksGroup.add(createSpinRow(
             settings,
+            'history-size',
+            _('Recent checks to display'),
+            _('Number of entries in the indicator submenu'),
+            1,
+            100,
+            1
+        ));
+        const historySideValues = ['left', 'right', 'auto'];
+        const historySideRow = new Adw.ComboRow({
+            title: _('History menu position'),
+            subtitle: _('Side of the indicator menu used for recent checks'),
+            model: Gtk.StringList.new([
+                _('Left'),
+                _('Right'),
+                _('Automatic'),
+            ]),
+            selected: Math.max(
+                0,
+                historySideValues.indexOf(
+                    settings.get_string('history-popup-side')
+                )
+            ),
+        });
+        historySideRow.connect('notify::selected', () => {
+            settings.set_string(
+                'history-popup-side',
+                historySideValues[historySideRow.selected]
+            );
+        });
+        settings.connect('changed::history-popup-side', () => {
+            const selected = historySideValues.indexOf(
+                settings.get_string('history-popup-side')
+            );
+            if (selected >= 0 && historySideRow.selected !== selected)
+                historySideRow.selected = selected;
+        });
+        checksGroup.add(historySideRow);
+
+        checksGroup.add(createSpinRow(
+            settings,
             'request-timeout',
             _('Request timeout'),
             _('Seconds to wait before a check fails'),

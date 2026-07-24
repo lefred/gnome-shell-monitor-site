@@ -1,4 +1,4 @@
-UUID := website-monitor@local
+UUID := website-monitor@lefred
 FILES := metadata.json extension.js prefs.js stylesheet.css schemas
 
 .PHONY: all schema package install clean

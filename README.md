@@ -10,6 +10,11 @@ in the top bar:
 Monitoring can be paused from a switch in the indicator menu. Pausing or
 resuming resets the consecutive-failure counter.
 
+The indicator also opens a separate cascading recent-checks menu beside the
+main menu. It shows the status, HTTP result, and response duration for the
+latest 10 checks by default. Its position can be set to left, right, or
+automatic; left is the default.
+
 After the configured number of consecutive failed checks (three by default), a
 large modal alert appears in the center of the screen and the desktop warning
 sound is played. A custom MP3 can be selected in the extension preferences.
@@ -53,6 +58,3 @@ logging out and back in on Wayland.
 <img width="263" height="227" alt="gnome-shell-monito-site03" src="https://github.com/user-attachments/assets/d20659b2-c70b-4c7f-8814-c05caeae3cb8" />
 
 <img width="718" height="333" alt="gnome-shell-monito-site04" src="https://github.com/user-attachments/assets/db21baff-e061-492c-af36-aca879d767e4" />
-
-
-

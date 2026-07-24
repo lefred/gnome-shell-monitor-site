@@ -19,6 +19,29 @@ const State = Object.freeze({
     DOWN: 'down',
 });
 
+const HistoryMenuItem = GObject.registerClass(
+class HistoryMenuItem extends PopupMenu.PopupBaseMenuItem {
+    _init(extension) {
+        super._init();
+        this._extension = extension;
+
+        this.label = new St.Label({
+            text: _('Recent checks…'),
+            x_expand: true,
+            y_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this.add_child(this.label);
+        this.add_child(PopupMenu.arrowIcon(St.Side.RIGHT));
+    }
+
+    activate() {
+        // Do not emit PopupBaseMenuItem::activate: the parent menu must remain
+        // open while the cascading history popup is visible.
+        this._extension.toggleHistoryPopup(this);
+    }
+});
+
 const MonitorIndicator = GObject.registerClass(
 class MonitorIndicator extends PanelMenu.Button {
     _init(extension) {
@@ -44,6 +67,15 @@ class MonitorIndicator extends PanelMenu.Button {
         this._monitorSwitch.connect('toggled', (_item, enabled) =>
             this._extension.setMonitoringEnabled(enabled));
         this.menu.addMenuItem(this._monitorSwitch);
+
+        this._historyItem = new HistoryMenuItem(this._extension);
+        this.menu.addMenuItem(this._historyItem);
+        this.setHistoryCount(0);
+        this.menu.connect('open-state-changed', (_menu, open) => {
+            if (!open)
+                this._extension.closeHistoryPopup();
+        });
+
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
         this._checkItem = new PopupMenu.PopupMenuItem(_('Check now'));
@@ -82,6 +114,65 @@ class MonitorIndicator extends PanelMenu.Button {
     setMonitoringEnabled(enabled) {
         this._monitorSwitch.setToggleState(enabled);
         this._checkItem.setSensitive(enabled);
+    }
+
+    setHistoryCount(count) {
+        this._historyItem.label.text = count === 0
+            ? _('Recent checks…')
+            : _('Recent checks (%d)…').format(count);
+    }
+});
+
+const WebsiteHistoryPopup = GObject.registerClass(
+class WebsiteHistoryPopup extends St.BoxLayout {
+    _init(entries) {
+        super._init({
+            vertical: true,
+            reactive: true,
+            can_focus: true,
+            style_class: 'popup-menu-content website-monitor-history-popup',
+        });
+        this._list = new St.BoxLayout({
+            vertical: true,
+            x_expand: true,
+            style_class: 'website-monitor-history-list',
+        });
+        const scrollView = new St.ScrollView({
+            x_expand: true,
+            y_expand: true,
+            style_class: 'website-monitor-history-scroll',
+        });
+        scrollView.set_child(this._list);
+        this.add_child(scrollView);
+
+        this.setEntries(entries);
+        Main.uiGroup.add_child(this);
+        Main.uiGroup.set_child_above_sibling(this, null);
+    }
+
+    setEntries(entries) {
+        for (const child of this._list.get_children())
+            child.destroy();
+
+        if (entries.length === 0) {
+            this._list.add_child(new St.Label({
+                text: _('No checks yet'),
+                style_class: 'website-monitor-history-empty',
+                x_align: Clutter.ActorAlign.CENTER,
+            }));
+            return;
+        }
+
+        for (const entry of entries) {
+            const duration = entry.elapsedMs === null
+                ? _('no response')
+                : _('%d ms').format(entry.elapsedMs);
+            this._list.add_child(new St.Label({
+                text: `${entry.time}   ${entry.status}   ${duration}   ${entry.detail}`,
+                style_class: `website-monitor-history-row website-monitor-history-${entry.state}`,
+                x_align: Clutter.ActorAlign.START,
+            }));
+        }
     }
 });
 
@@ -161,12 +252,14 @@ export default class WebsiteMonitorExtension extends Extension {
             user_agent: 'GNOME Website Monitor/1.0',
         });
         this._failures = 0;
+        this._history = [];
         this._alertShownForOutage = false;
         this._checkInProgress = false;
         this._checkAfterCurrent = false;
         this._timerId = 0;
         this._cancellable = null;
         this._alertOverlay = null;
+        this._historyPopup = null;
         this._customSoundPlayer = null;
         this._customSoundBus = null;
         this._customSoundMessageId = 0;
@@ -180,6 +273,14 @@ export default class WebsiteMonitorExtension extends Extension {
             }
             if (key === 'monitor-enabled') {
                 this._applyMonitoringState();
+                return;
+            }
+            if (key === 'history-size') {
+                this._trimHistory();
+                return;
+            }
+            if (key === 'history-popup-side') {
+                this.closeHistoryPopup();
                 return;
             }
 
@@ -207,6 +308,72 @@ export default class WebsiteMonitorExtension extends Extension {
         this._alertShownForOutage = false;
         this._alertOverlay?.close();
         this._alertOverlay = null;
+    }
+
+    _addHistory(state, elapsedMs, detail) {
+        const statusNames = {
+            [State.HEALTHY]: _('Available'),
+            [State.SLOW]: _('Slow'),
+            [State.DOWN]: _('Unavailable'),
+        };
+        this._history.unshift({
+            time: GLib.DateTime.new_now_local().format('%H:%M:%S'),
+            status: statusNames[state],
+            state,
+            elapsedMs,
+            detail,
+        });
+        this._trimHistory();
+    }
+
+    _trimHistory() {
+        const limit = this._settings.get_uint('history-size');
+        if (this._history.length > limit)
+            this._history.length = limit;
+        this._indicator.setHistoryCount(this._history.length);
+        this._historyPopup?.setEntries(this._history);
+    }
+
+    toggleHistoryPopup(sourceItem) {
+        if (this._historyPopup) {
+            this.closeHistoryPopup();
+            return;
+        }
+
+        const popup = new WebsiteHistoryPopup(this._history);
+        this._historyPopup = popup;
+
+        const [sourceX, sourceY] = sourceItem.get_transformed_position();
+        const [sourceWidth] = sourceItem.get_transformed_size();
+        const [, popupWidth] = popup.get_preferred_width(-1);
+        const [, popupHeight] = popup.get_preferred_height(-1);
+        const gap = 6;
+        const side = this._settings.get_string('history-popup-side');
+
+        let popupX;
+        if (side === 'left') {
+            popupX = sourceX - popupWidth - gap;
+        } else if (side === 'right') {
+            popupX = sourceX + sourceWidth + gap;
+        } else {
+            popupX = sourceX + sourceWidth + gap;
+            if (popupX + popupWidth > global.stage.width)
+                popupX = sourceX - popupWidth - gap;
+        }
+        popupX = Math.max(
+            0,
+            Math.min(popupX, global.stage.width - popupWidth)
+        );
+        const popupY = Math.max(
+            0,
+            Math.min(sourceY, global.stage.height - popupHeight)
+        );
+        popup.set_position(Math.round(popupX), Math.round(popupY));
+    }
+
+    closeHistoryPopup() {
+        this._historyPopup?.destroy();
+        this._historyPopup = null;
     }
 
     _applyMonitoringState() {
@@ -240,6 +407,7 @@ export default class WebsiteMonitorExtension extends Extension {
         this._stopAlertSound();
         this._alertOverlay?.close();
         this._alertOverlay = null;
+        this.closeHistoryPopup();
         if (this._settingsChangedId)
             this._settings.disconnect(this._settingsChangedId);
         this._settingsChangedId = 0;
@@ -280,10 +448,12 @@ export default class WebsiteMonitorExtension extends Extension {
         try {
             message = Soup.Message.new('GET', url);
         } catch (error) {
+            this._addHistory(State.DOWN, null, _('invalid address'));
             this._recordFailure(_('Invalid website address'));
             return;
         }
         if (!message) {
+            this._addHistory(State.DOWN, null, _('invalid address'));
             this._recordFailure(_('Invalid website address'));
             return;
         }
@@ -304,6 +474,7 @@ export default class WebsiteMonitorExtension extends Extension {
             const status = message.get_status();
 
             if (status < 200 || status >= 400) {
+                this._addHistory(State.DOWN, elapsedMs, `HTTP ${status}`);
                 this._recordFailure(_('HTTP %d — failed check %d/%d').format(
                     status,
                     this._failures + 1,
@@ -314,6 +485,11 @@ export default class WebsiteMonitorExtension extends Extension {
                 this._alertShownForOutage = false;
                 const isSlow = this._settings.get_boolean('slow-threshold-enabled') &&
                     elapsedMs >= this._settings.get_uint('slow-threshold-ms');
+                this._addHistory(
+                    isSlow ? State.SLOW : State.HEALTHY,
+                    elapsedMs,
+                    `HTTP ${status}`
+                );
                 this._indicator.setState(
                     isSlow ? State.SLOW : State.HEALTHY,
                     isSlow
@@ -322,11 +498,16 @@ export default class WebsiteMonitorExtension extends Extension {
                 );
             }
         } catch (error) {
-            if (!error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))
+            if (!error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
+                const elapsedMs = Math.round(
+                    (GLib.get_monotonic_time() - started) / 1000
+                );
+                this._addHistory(State.DOWN, elapsedMs, _('request failed'));
                 this._recordFailure(_('Unavailable — failed check %d/%d').format(
                     this._failures + 1,
                     this._settings.get_uint('failure-threshold')
                 ));
+            }
         } finally {
             this._checkInProgress = false;
             this._cancellable = null;

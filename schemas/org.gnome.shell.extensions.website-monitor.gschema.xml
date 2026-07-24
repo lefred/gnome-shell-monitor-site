@@ -29,6 +29,20 @@
       <range min="1" max="100"/>
       <summary>Consecutive failed checks before alerting</summary>
     </key>
+    <key name="history-size" type="u">
+      <default>10</default>
+      <range min="1" max="100"/>
+      <summary>Number of recent checks to display</summary>
+    </key>
+    <key name="history-popup-side" type="s">
+      <default>'left'</default>
+      <choices>
+        <choice value="left"/>
+        <choice value="right"/>
+        <choice value="auto"/>
+      </choices>
+      <summary>Side on which the recent-checks popup opens</summary>
+    </key>
     <key name="request-timeout" type="u">
       <default>15</default>
       <range min="1" max="120"/>

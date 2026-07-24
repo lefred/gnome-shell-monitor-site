@@ -60,3 +60,45 @@
   background-color: #1c71d8;
   border-color: #99c1f1;
 }
+
+.website-monitor-history-popup {
+  min-width: 520px;
+  padding: 8px;
+  border-radius: 10px;
+  background-color: #2e3436;
+  border: 1px solid #77767b;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.65);
+}
+
+.website-monitor-history-scroll {
+  min-height: 80px;
+  max-height: 420px;
+}
+
+.website-monitor-history-list {
+  spacing: 6px;
+}
+
+.website-monitor-history-row {
+  color: #ffffff;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.website-monitor-history-healthy {
+  color: #8ff0a4;
+}
+
+.website-monitor-history-slow {
+  color: #ffbe6f;
+}
+
+.website-monitor-history-down {
+  color: #ff7b63;
+}
+
+.website-monitor-history-empty {
+  color: #deddda;
+  padding: 24px;
+}
