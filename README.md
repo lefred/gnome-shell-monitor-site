@@ -51,10 +51,19 @@ logging out and back in on Wayland.
 
 ## Screenshots
 
-<img width="718" height="849" alt="gnome-shell-monito-site01" src="https://github.com/user-attachments/assets/a40a5148-343c-4a97-aa0f-4896bda4f92f" />
+## v8
 
-<img width="718" height="849" alt="gnome-shell-monito-site02" src="https://github.com/user-attachments/assets/7b4d72c8-64f3-4f63-8b5d-47a844ccbfbf" />
+<img width="708" height="691" alt="gnome-shell-monito-site05" src="https://github.com/user-attachments/assets/ff78d61d-7d36-4882-af14-1f3b0f2b9bbc" /><br>
 
-<img width="263" height="227" alt="gnome-shell-monito-site03" src="https://github.com/user-attachments/assets/d20659b2-c70b-4c7f-8814-c05caeae3cb8" />
+<img width="799" height="551" alt="gnome-shell-monito-site06" src="https://github.com/user-attachments/assets/6dde463f-bc65-48c9-ad02-b160276baf46" />
+
+
+## v7
+
+<img width="718" height="849" alt="gnome-shell-monito-site01" src="https://github.com/user-attachments/assets/a40a5148-343c-4a97-aa0f-4896bda4f92f" /><br>
+
+<img width="718" height="849" alt="gnome-shell-monito-site02" src="https://github.com/user-attachments/assets/7b4d72c8-64f3-4f63-8b5d-47a844ccbfbf" /><br>
+
+<img width="263" height="227" alt="gnome-shell-monito-site03" src="https://github.com/user-attachments/assets/d20659b2-c70b-4c7f-8814-c05caeae3cb8" /><br>
 
 <img width="718" height="333" alt="gnome-shell-monito-site04" src="https://github.com/user-attachments/assets/db21baff-e061-492c-af36-aca879d767e4" />
