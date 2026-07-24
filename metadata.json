@@ -3,7 +3,8 @@
   "name": "Website Monitor",
   "author": "lefred with codex",
   "description": "Monitor a website from the top bar and alert when it becomes unavailable.",
-  "version": 8,
+  "version": 9,
   "settings-schema": "org.gnome.shell.extensions.website-monitor",
-  "shell-version": ["45", "46", "47", "48", "49"]
+  "shell-version": ["45", "46", "47", "48", "49"],
+  "session-modes": ["user", "unlock-dialog"]
 }

@@ -21,6 +21,11 @@ sound is played. A custom MP3 can be selected in the extension preferences.
 The sound loops until the alert is dismissed. One alert is shown per outage; a
 successful check resets it.
 
+Monitoring continues while the screen is locked. If an outage reaches the
+threshold while locked, the alert sound plays once and the dismissible looping
+alert is presented after unlock if the site is still unavailable. Checks cannot
+run while the computer is suspended.
+
 Custom MP3 playback uses GStreamer 1.0 and requires an installed MP3 decoder
 plugin (provided by `gst-plugins-good` on Fedora).
 

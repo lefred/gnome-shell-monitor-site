@@ -254,6 +254,7 @@ export default class WebsiteMonitorExtension extends Extension {
         this._failures = 0;
         this._history = [];
         this._alertShownForOutage = false;
+        this._alertPendingAfterUnlock = false;
         this._checkInProgress = false;
         this._checkAfterCurrent = false;
         this._timerId = 0;
@@ -265,6 +266,10 @@ export default class WebsiteMonitorExtension extends Extension {
         this._customSoundMessageId = 0;
         this._customSoundLoopId = 0;
         this._defaultSoundTimerId = 0;
+        this._sessionModeChangedId = Main.sessionMode.connect(
+            'updated',
+            () => this._onSessionModeUpdated()
+        );
 
         this._settingsChangedId = this._settings.connect('changed', (_settings, key) => {
             if (key === 'test-alert-request') {
@@ -306,8 +311,29 @@ export default class WebsiteMonitorExtension extends Extension {
     _resetFailureState() {
         this._failures = 0;
         this._alertShownForOutage = false;
+        this._alertPendingAfterUnlock = false;
         this._alertOverlay?.close();
         this._alertOverlay = null;
+    }
+
+    _onSessionModeUpdated() {
+        if (Main.sessionMode.isLocked) {
+            if (this._alertOverlay) {
+                this._alertOverlay.close();
+                this._alertOverlay = null;
+                this._stopAlertSound();
+                this._alertPendingAfterUnlock =
+                    this._failures >= this._settings.get_uint('failure-threshold');
+            }
+            this.closeHistoryPopup();
+            return;
+        }
+
+        if (this._alertPendingAfterUnlock &&
+            this._failures >= this._settings.get_uint('failure-threshold')) {
+            this._alertPendingAfterUnlock = false;
+            this._alertShownForOutage = this._showAlert();
+        }
     }
 
     _addHistory(state, elapsedMs, detail) {
@@ -408,6 +434,11 @@ export default class WebsiteMonitorExtension extends Extension {
         this._alertOverlay?.close();
         this._alertOverlay = null;
         this.closeHistoryPopup();
+        // unlock-dialog is enabled only so checks continue while locked; all
+        // dismissible UI is suppressed until the normal user session returns.
+        if (this._sessionModeChangedId)
+            Main.sessionMode.disconnect(this._sessionModeChangedId);
+        this._sessionModeChangedId = 0;
         if (this._settingsChangedId)
             this._settings.disconnect(this._settingsChangedId);
         this._settingsChangedId = 0;
@@ -483,6 +514,7 @@ export default class WebsiteMonitorExtension extends Extension {
             } else {
                 this._failures = 0;
                 this._alertShownForOutage = false;
+                this._alertPendingAfterUnlock = false;
                 const isSlow = this._settings.get_boolean('slow-threshold-enabled') &&
                     elapsedMs >= this._settings.get_uint('slow-threshold-ms');
                 this._addHistory(
@@ -524,7 +556,17 @@ export default class WebsiteMonitorExtension extends Extension {
 
         const threshold = this._settings.get_uint('failure-threshold');
         if (this._failures >= threshold && !this._alertShownForOutage) {
-            this._alertShownForOutage = this._showAlert();
+            if (Main.sessionMode.isLocked) {
+                this._alertShownForOutage = true;
+                this._alertPendingAfterUnlock = true;
+                this._indicator.setState(
+                    State.DOWN,
+                    _('ALERT — deferred until unlock')
+                );
+                this._playLockedAlertSound();
+            } else {
+                this._alertShownForOutage = this._showAlert();
+            }
         }
     }
 
@@ -539,14 +581,14 @@ export default class WebsiteMonitorExtension extends Extension {
         this._alertShownForOutage = this._showAlert();
     }
 
-    _playDefaultSound() {
+    _playDefaultSound(repeat = true) {
         global.display.get_sound_player().play_from_theme(
             'dialog-warning',
             _('Website unavailable'),
             null
         );
 
-        if (!this._defaultSoundTimerId) {
+        if (repeat && !this._defaultSoundTimerId) {
             this._defaultSoundTimerId = GLib.timeout_add_seconds(
                 GLib.PRIORITY_DEFAULT,
                 3,
@@ -595,7 +637,7 @@ export default class WebsiteMonitorExtension extends Extension {
         this._stopCustomSound();
     }
 
-    _playCustomSound(uri) {
+    _playCustomSound(uri, loop = true) {
         this._stopCustomSound();
 
         const file = Gio.File.new_for_uri(uri);
@@ -612,24 +654,30 @@ export default class WebsiteMonitorExtension extends Extension {
 
         this._customSoundPlayer = player;
         this._customSoundBus = bus;
-        this._customSoundLoopId = player.connect('about-to-finish', () => {
-            // Reassigning the same URI queues the file again for gapless
-            // playback before the current pass reaches EOS.
-            player.set_property('uri', uri);
-        });
+        if (loop) {
+            this._customSoundLoopId = player.connect('about-to-finish', () => {
+                // Reassigning the same URI queues the file again for gapless
+                // playback before the current pass reaches EOS.
+                player.set_property('uri', uri);
+            });
+        }
         this._customSoundMessageId = bus.connect('message', (_bus, message) => {
             if (message.type === Gst.MessageType.EOS) {
-                // Some pipelines do not emit about-to-finish early enough.
-                // Restart on EOS as a second loop mechanism.
-                player.set_state(Gst.State.NULL);
-                player.set_property('uri', uri);
-                player.set_state(Gst.State.PLAYING);
+                if (loop) {
+                    // Some pipelines do not emit about-to-finish early enough.
+                    // Restart on EOS as a second loop mechanism.
+                    player.set_state(Gst.State.NULL);
+                    player.set_property('uri', uri);
+                    player.set_state(Gst.State.PLAYING);
+                } else {
+                    this._stopCustomSound();
+                }
             } else if (message.type === Gst.MessageType.ERROR) {
                 const [error, debug] = message.parse_error();
                 console.warn(`Website Monitor MP3 playback failed: ${error.message}; ${debug ?? ''}`);
                 this._stopCustomSound();
                 try {
-                    this._playDefaultSound();
+                    this._playDefaultSound(loop);
                 } catch (fallbackError) {
                     console.warn(`Website Monitor fallback sound failed: ${fallbackError.message}`);
                 }
@@ -639,6 +687,23 @@ export default class WebsiteMonitorExtension extends Extension {
         if (player.set_state(Gst.State.PLAYING) === Gst.StateChangeReturn.FAILURE) {
             this._stopCustomSound();
             throw new Error(_('GStreamer could not start MP3 playback'));
+        }
+    }
+
+    _playLockedAlertSound() {
+        try {
+            const soundUri = this._settings.get_string('alert-sound-uri');
+            if (soundUri)
+                this._playCustomSound(soundUri, false);
+            else
+                this._playDefaultSound(false);
+        } catch (error) {
+            console.warn(`Website Monitor locked alert sound failed: ${error.message}`);
+            try {
+                this._playDefaultSound(false);
+            } catch (fallbackError) {
+                console.warn(`Website Monitor fallback sound failed: ${fallbackError.message}`);
+            }
         }
     }
 
