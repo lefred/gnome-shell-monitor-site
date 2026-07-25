@@ -19,7 +19,7 @@ After the configured number of consecutive failed checks (three by default), a
 large modal alert appears in the center of the screen and the desktop warning
 sound is played. A custom MP3 can be selected in the extension preferences.
 The sound loops until the alert is dismissed. One alert is shown per outage; a
-successful check resets it.
+successful check automatically closes the alert and stops its sound.
 
 Audible alerts can be disabled independently without disabling the visual
 overlay, desktop notification, monitoring, or email alerts.

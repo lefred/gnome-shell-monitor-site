@@ -542,6 +542,9 @@ export default class WebsiteMonitorExtension extends Extension {
                 this._alertShownForOutage = false;
                 this._alertPendingAfterUnlock = false;
                 this._emailSentForOutage = false;
+                this._alertOverlay?.close();
+                this._alertOverlay = null;
+                this._stopAlertSound();
                 const isSlow = this._settings.get_boolean('slow-threshold-enabled') &&
                     elapsedMs >= this._settings.get_uint('slow-threshold-ms');
                 this._addHistory(
