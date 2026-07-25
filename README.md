@@ -65,6 +65,18 @@ logging out and back in on Wayland.
 
 ## Screenshots
 
+## v10
+
+<img width="708" height="1017" alt="gnome-shell-monito09" src="https://github.com/user-attachments/assets/fc919d9c-36f6-4445-bb2e-8757de7b7969" />
+
+
+## v9
+
+<img width="495" height="145" alt="gnome-shell-monito07" src="https://github.com/user-attachments/assets/0694c83d-6723-4be6-bd74-76b9cecd36f4" /><br>
+
+<img width="813" height="251" alt="gnome-shell-monito08" src="https://github.com/user-attachments/assets/cbc21c7b-39a7-491a-bfae-93b3d484354b" />
+
+
 ## v8
 
 <img width="708" height="691" alt="gnome-shell-monito-site05" src="https://github.com/user-attachments/assets/ff78d61d-7d36-4882-af14-1f3b0f2b9bbc" /><br>
