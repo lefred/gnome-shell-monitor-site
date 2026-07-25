@@ -21,10 +21,19 @@ sound is played. A custom MP3 can be selected in the extension preferences.
 The sound loops until the alert is dismissed. One alert is shown per outage; a
 successful check resets it.
 
+Audible alerts can be disabled independently without disabling the visual
+overlay, desktop notification, monitoring, or email alerts.
+
 Monitoring continues while the screen is locked. If an outage reaches the
 threshold while locked, the alert sound plays once and the dismissible looping
 alert is presented after unlock if the site is still unavailable. Checks cannot
 run while the computer is suspended.
+
+Optional email alerts can be configured with an SMTP server, connection
+security, credentials, sender, and one or more recipients. One email is sent
+when an outage reaches the failure threshold; recovery resets the notification.
+SMTP delivery uses `curl`. The SMTP password is stored unencrypted in the
+extension's local GSettings, so an app-specific password is recommended.
 
 Custom MP3 playback uses GStreamer 1.0 and requires an installed MP3 decoder
 plugin (provided by `gst-plugins-good` on Fedora).

@@ -53,10 +53,57 @@
       <summary>URI of the custom MP3 alert sound</summary>
       <description>Empty uses the default desktop warning sound.</description>
     </key>
+    <key name="sound-alert-enabled" type="b">
+      <default>true</default>
+      <summary>Enable audible alerts</summary>
+    </key>
     <key name="test-alert-request" type="u">
       <default>0</default>
       <summary>Alert test request counter</summary>
       <description>Changing this value asks the running extension to show a test alert.</description>
+    </key>
+    <key name="email-enabled" type="b">
+      <default>false</default>
+      <summary>Send an email when an outage reaches the alert threshold</summary>
+    </key>
+    <key name="smtp-host" type="s">
+      <default>''</default>
+      <summary>SMTP server hostname</summary>
+    </key>
+    <key name="smtp-port" type="u">
+      <default>587</default>
+      <range min="1" max="65535"/>
+      <summary>SMTP server port</summary>
+    </key>
+    <key name="smtp-security" type="s">
+      <default>'starttls'</default>
+      <choices>
+        <choice value="tls"/>
+        <choice value="starttls"/>
+        <choice value="none"/>
+      </choices>
+      <summary>SMTP connection security</summary>
+    </key>
+    <key name="smtp-username" type="s">
+      <default>''</default>
+      <summary>SMTP username</summary>
+    </key>
+    <key name="smtp-password" type="s">
+      <default>''</default>
+      <summary>SMTP password</summary>
+    </key>
+    <key name="email-from" type="s">
+      <default>''</default>
+      <summary>Sender email address</summary>
+    </key>
+    <key name="email-recipients" type="s">
+      <default>''</default>
+      <summary>Comma-separated recipient email addresses</summary>
+    </key>
+    <key name="test-email-request" type="u">
+      <default>0</default>
+      <summary>Test email request counter</summary>
+      <description>Changing this value asks the running extension to send a test email.</description>
     </key>
   </schema>
 </schemalist>

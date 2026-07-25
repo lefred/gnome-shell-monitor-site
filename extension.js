@@ -255,6 +255,7 @@ export default class WebsiteMonitorExtension extends Extension {
         this._history = [];
         this._alertShownForOutage = false;
         this._alertPendingAfterUnlock = false;
+        this._emailSentForOutage = false;
         this._checkInProgress = false;
         this._checkAfterCurrent = false;
         this._timerId = 0;
@@ -276,6 +277,17 @@ export default class WebsiteMonitorExtension extends Extension {
                 this.testAlert();
                 return;
             }
+            if (key === 'test-email-request') {
+                this._sendEmail(true);
+                return;
+            }
+            if (key === 'sound-alert-enabled') {
+                if (!this._settings.get_boolean('sound-alert-enabled'))
+                    this._stopAlertSound();
+                return;
+            }
+            if (key === 'alert-sound-uri')
+                return;
             if (key === 'monitor-enabled') {
                 this._applyMonitoringState();
                 return;
@@ -288,6 +300,17 @@ export default class WebsiteMonitorExtension extends Extension {
                 this.closeHistoryPopup();
                 return;
             }
+            if ([
+                'email-enabled',
+                'smtp-host',
+                'smtp-port',
+                'smtp-security',
+                'smtp-username',
+                'smtp-password',
+                'email-from',
+                'email-recipients',
+            ].includes(key))
+                return;
 
             if (this.monitoringEnabled) {
                 this._restartTimer();
@@ -312,6 +335,7 @@ export default class WebsiteMonitorExtension extends Extension {
         this._failures = 0;
         this._alertShownForOutage = false;
         this._alertPendingAfterUnlock = false;
+        this._emailSentForOutage = false;
         this._alertOverlay?.close();
         this._alertOverlay = null;
     }
@@ -515,6 +539,7 @@ export default class WebsiteMonitorExtension extends Extension {
                 this._failures = 0;
                 this._alertShownForOutage = false;
                 this._alertPendingAfterUnlock = false;
+                this._emailSentForOutage = false;
                 const isSlow = this._settings.get_boolean('slow-threshold-enabled') &&
                     elapsedMs >= this._settings.get_uint('slow-threshold-ms');
                 this._addHistory(
@@ -555,6 +580,13 @@ export default class WebsiteMonitorExtension extends Extension {
         this._indicator.setState(State.DOWN, message);
 
         const threshold = this._settings.get_uint('failure-threshold');
+        if (this._failures >= threshold &&
+            this._settings.get_boolean('email-enabled') &&
+            !this._emailSentForOutage) {
+            this._emailSentForOutage = true;
+            this._sendEmail(false);
+        }
+
         if (this._failures >= threshold && !this._alertShownForOutage) {
             if (Main.sessionMode.isLocked) {
                 this._alertShownForOutage = true;
@@ -579,6 +611,116 @@ export default class WebsiteMonitorExtension extends Extension {
             this._settings.get_uint('failure-threshold')
         );
         this._alertShownForOutage = this._showAlert();
+    }
+
+    _emailSetting(key) {
+        return this._settings.get_string(key).replace(/[\r\n]/g, '').trim();
+    }
+
+    async _sendEmail(isTest) {
+        try {
+            const curl = GLib.find_program_in_path('curl');
+            if (!curl)
+                throw new Error(_('curl is not installed'));
+
+            const host = this._emailSetting('smtp-host');
+            const username = this._emailSetting('smtp-username');
+            const password = this._settings.get_string('smtp-password');
+            const from = this._emailSetting('email-from');
+            const recipients = this._emailSetting('email-recipients')
+                .split(',')
+                .map(address => address.trim())
+                .filter(Boolean);
+
+            if (!host)
+                throw new Error(_('SMTP server is required'));
+            if (!from || !from.includes('@'))
+                throw new Error(_('A valid sender address is required'));
+            if (recipients.length === 0 ||
+                recipients.some(address => !address.includes('@')))
+                throw new Error(_('At least one valid recipient is required'));
+
+            const security = this._settings.get_string('smtp-security');
+            const port = this._settings.get_uint('smtp-port');
+            const scheme = security === 'tls' ? 'smtps' : 'smtp';
+            const smtpUrl = `${scheme}://${host}:${port}/`;
+            const args = [
+                curl,
+                '--silent',
+                '--show-error',
+                '--fail',
+                '--connect-timeout',
+                '15',
+                '--max-time',
+                '45',
+                '--url',
+                smtpUrl,
+                '--mail-from',
+                from,
+            ];
+
+            if (security === 'starttls')
+                args.push('--ssl-reqd');
+            if (username || password)
+                args.push('--user', `${username}:${password}`);
+            for (const recipient of recipients)
+                args.push('--mail-rcpt', recipient);
+            args.push('--upload-file', '-');
+
+            const website = this._emailSetting('website-url');
+            const subject = isTest
+                ? _('Website Monitor test email')
+                : _('ALERT: Website unavailable');
+            const body = isTest
+                ? _('This is a test email from the GNOME Website Monitor extension.')
+                : _('%s has failed %d consecutive checks and is considered unavailable.')
+                    .format(website, this._failures);
+            const date = GLib.DateTime.new_now_local()
+                .format('%a, %d %b %Y %H:%M:%S %z');
+            const payload = [
+                `Date: ${date}`,
+                `From: ${from}`,
+                `To: ${recipients.join(', ')}`,
+                `Subject: ${subject}`,
+                'MIME-Version: 1.0',
+                'Content-Type: text/plain; charset=UTF-8',
+                'Content-Transfer-Encoding: 8bit',
+                '',
+                body,
+                '',
+            ].join('\r\n');
+
+            const process = Gio.Subprocess.new(
+                args,
+                Gio.SubprocessFlags.STDIN_PIPE |
+                Gio.SubprocessFlags.STDERR_PIPE
+            );
+            const result = await new Promise((resolve, reject) => {
+                process.communicate_utf8_async(
+                    payload,
+                    null,
+                    (source, asyncResult) => {
+                        try {
+                            resolve(source.communicate_utf8_finish(asyncResult));
+                        } catch (error) {
+                            reject(error);
+                        }
+                    }
+                );
+            });
+            if (!process.get_successful()) {
+                const stderr = result.at(-1)?.trim() ?? '';
+                throw new Error(stderr || _('SMTP delivery failed'));
+            }
+
+            console.info(`Website Monitor ${isTest ? 'test ' : ''}email sent`);
+            if (isTest && !Main.sessionMode.isLocked)
+                Main.notify(_('Website Monitor'), _('Test email sent successfully'));
+        } catch (error) {
+            console.error(`Website Monitor email failed: ${error.message}`);
+            if (isTest && !Main.sessionMode.isLocked)
+                Main.notifyError(_('Test email failed'), error.message);
+        }
     }
 
     _playDefaultSound(repeat = true) {
@@ -691,6 +833,9 @@ export default class WebsiteMonitorExtension extends Extension {
     }
 
     _playLockedAlertSound() {
+        if (!this._settings.get_boolean('sound-alert-enabled'))
+            return;
+
         try {
             const soundUri = this._settings.get_string('alert-sound-uri');
             if (soundUri)
@@ -731,18 +876,20 @@ export default class WebsiteMonitorExtension extends Extension {
 
         // GStreamer's playbin handles MP3 decoding. GNOME's event-sound player
         // remains the fallback for an unset or unplayable custom sound.
-        try {
-            const soundUri = this._settings.get_string('alert-sound-uri');
-            if (soundUri)
-                this._playCustomSound(soundUri);
-            else
-                this._playDefaultSound();
-        } catch (error) {
-            console.warn(`Website Monitor could not play alert sound: ${error.message}`);
+        if (this._settings.get_boolean('sound-alert-enabled')) {
             try {
-                this._playDefaultSound();
-            } catch (fallbackError) {
-                console.warn(`Website Monitor fallback sound failed: ${fallbackError.message}`);
+                const soundUri = this._settings.get_string('alert-sound-uri');
+                if (soundUri)
+                    this._playCustomSound(soundUri);
+                else
+                    this._playDefaultSound();
+            } catch (error) {
+                console.warn(`Website Monitor could not play alert sound: ${error.message}`);
+                try {
+                    this._playDefaultSound();
+                } catch (fallbackError) {
+                    console.warn(`Website Monitor fallback sound failed: ${fallbackError.message}`);
+                }
             }
         }
 

@@ -183,10 +183,28 @@ export default class WebsiteMonitorPreferences extends ExtensionPreferences {
         });
         page.add(soundGroup);
 
+        const soundEnabledRow = new Adw.SwitchRow({
+            title: _('Enable sound alert'),
+            subtitle: _('Play and repeat a sound while the alert is displayed'),
+        });
+        settings.bind(
+            'sound-alert-enabled',
+            soundEnabledRow,
+            'active',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        soundGroup.add(soundEnabledRow);
+
         const soundRow = new Adw.ActionRow({
             title: _('Sound file'),
             subtitle: soundName(settings.get_string('alert-sound-uri')),
         });
+        settings.bind(
+            'sound-alert-enabled',
+            soundRow,
+            'sensitive',
+            Gio.SettingsBindFlags.GET
+        );
         soundGroup.add(soundRow);
 
         const chooseSoundButton = new Gtk.Button({
@@ -257,6 +275,168 @@ export default class WebsiteMonitorPreferences extends ExtensionPreferences {
         });
         testAlertRow.add_suffix(testAlertButton);
         soundGroup.add(testAlertRow);
+
+        const emailGroup = new Adw.PreferencesGroup({
+            title: _('Email alerts'),
+            description: _('Send one email when an outage reaches the failure threshold. Requires curl with SMTP support.'),
+        });
+        page.add(emailGroup);
+
+        const emailEnabledRow = new Adw.SwitchRow({
+            title: _('Enable email alerts'),
+            subtitle: _('Send again only after the website has recovered'),
+        });
+        settings.bind(
+            'email-enabled',
+            emailEnabledRow,
+            'active',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        emailGroup.add(emailEnabledRow);
+
+        const smtpHostRow = new Adw.EntryRow({
+            title: _('SMTP server'),
+        });
+        settings.bind(
+            'smtp-host',
+            smtpHostRow,
+            'text',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        emailGroup.add(smtpHostRow);
+
+        const smtpPortRow = createSpinRow(
+            settings,
+            'smtp-port',
+            _('SMTP port'),
+            _('Usually 587 for STARTTLS or 465 for TLS'),
+            1,
+            65535,
+            1
+        );
+        emailGroup.add(smtpPortRow);
+
+        const smtpSecurityValues = ['starttls', 'tls', 'none'];
+        const smtpSecurityRow = new Adw.ComboRow({
+            title: _('Connection security'),
+            model: Gtk.StringList.new([
+                _('STARTTLS'),
+                _('TLS'),
+                _('None'),
+            ]),
+            selected: Math.max(
+                0,
+                smtpSecurityValues.indexOf(
+                    settings.get_string('smtp-security')
+                )
+            ),
+        });
+        smtpSecurityRow.connect('notify::selected', () => {
+            settings.set_string(
+                'smtp-security',
+                smtpSecurityValues[smtpSecurityRow.selected]
+            );
+        });
+        settings.connect('changed::smtp-security', () => {
+            const selected = smtpSecurityValues.indexOf(
+                settings.get_string('smtp-security')
+            );
+            if (selected >= 0 && smtpSecurityRow.selected !== selected)
+                smtpSecurityRow.selected = selected;
+        });
+        emailGroup.add(smtpSecurityRow);
+
+        const smtpUsernameRow = new Adw.EntryRow({
+            title: _('SMTP username'),
+        });
+        settings.bind(
+            'smtp-username',
+            smtpUsernameRow,
+            'text',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        emailGroup.add(smtpUsernameRow);
+
+        const smtpPasswordRow = new Adw.PasswordEntryRow({
+            title: _('SMTP password'),
+        });
+        settings.bind(
+            'smtp-password',
+            smtpPasswordRow,
+            'text',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        emailGroup.add(smtpPasswordRow);
+
+        const passwordWarningRow = new Adw.ActionRow({
+            title: _('Password storage'),
+            subtitle: _('The password is stored unencrypted in your local GNOME settings. Prefer an app-specific password.'),
+            icon_name: 'dialog-warning-symbolic',
+        });
+        emailGroup.add(passwordWarningRow);
+
+        const emailFromRow = new Adw.EntryRow({
+            title: _('Sender address'),
+        });
+        settings.bind(
+            'email-from',
+            emailFromRow,
+            'text',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        emailGroup.add(emailFromRow);
+
+        const emailRecipientsRow = new Adw.EntryRow({
+            title: _('Recipients'),
+        });
+        emailRecipientsRow.add_suffix(new Gtk.Label({
+            label: _('comma-separated'),
+            css_classes: ['dim-label'],
+        }));
+        settings.bind(
+            'email-recipients',
+            emailRecipientsRow,
+            'text',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        emailGroup.add(emailRecipientsRow);
+
+        for (const row of [
+            smtpHostRow,
+            smtpPortRow,
+            smtpSecurityRow,
+            smtpUsernameRow,
+            smtpPasswordRow,
+            passwordWarningRow,
+            emailFromRow,
+            emailRecipientsRow,
+        ]) {
+            settings.bind(
+                'email-enabled',
+                row,
+                'sensitive',
+                Gio.SettingsBindFlags.GET
+            );
+        }
+
+        const testEmailRow = new Adw.ActionRow({
+            title: _('Test email'),
+            subtitle: _('Send a message using the SMTP settings above'),
+        });
+        const testEmailButton = new Gtk.Button({
+            label: _('Send test'),
+            valign: Gtk.Align.CENTER,
+            css_classes: ['suggested-action'],
+        });
+        testEmailButton.connect('clicked', () => {
+            const current = settings.get_uint('test-email-request');
+            settings.set_uint(
+                'test-email-request',
+                current === 0xffffffff ? 0 : current + 1
+            );
+        });
+        testEmailRow.add_suffix(testEmailButton);
+        emailGroup.add(testEmailRow);
 
         const infoGroup = new Adw.PreferencesGroup({
             title: _('Status colors'),
