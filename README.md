@@ -32,8 +32,9 @@ run while the computer is suspended.
 Optional email alerts can be configured with an SMTP server, connection
 security, credentials, sender, and one or more recipients. One email is sent
 when an outage reaches the failure threshold; recovery resets the notification.
-SMTP delivery uses `curl`. The SMTP password is stored unencrypted in the
-extension's local GSettings, so an app-specific password is recommended.
+SMTP delivery uses `curl`. The SMTP password is stored securely in the user's
+default GNOME Keyring through libsecret. Older plaintext values are migrated
+automatically and removed from GSettings.
 
 Custom MP3 playback uses GStreamer 1.0 and requires an installed MP3 decoder
 plugin (provided by `gst-plugins-good` on Fedora).

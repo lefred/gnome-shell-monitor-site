@@ -4,6 +4,8 @@ import Gtk from 'gi://Gtk';
 
 import {ExtensionPreferences, gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
+import {clearPassword, lookupPassword, storePassword} from './secretStore.js';
+
 function createSpinRow(settings, key, title, subtitle, lower, upper, step) {
     const row = new Adw.SpinRow({
         title,
@@ -358,22 +360,101 @@ export default class WebsiteMonitorPreferences extends ExtensionPreferences {
         emailGroup.add(smtpUsernameRow);
 
         const smtpPasswordRow = new Adw.PasswordEntryRow({
-            title: _('SMTP password'),
+            title: _('New SMTP password'),
+            show_apply_button: false,
         });
-        settings.bind(
-            'smtp-password',
-            smtpPasswordRow,
-            'text',
-            Gio.SettingsBindFlags.DEFAULT
-        );
+        const savePasswordButton = new Gtk.Button({
+            label: _('Save'),
+            valign: Gtk.Align.CENTER,
+            css_classes: ['suggested-action'],
+        });
+        smtpPasswordRow.add_suffix(savePasswordButton);
         emailGroup.add(smtpPasswordRow);
 
-        const passwordWarningRow = new Adw.ActionRow({
-            title: _('Password storage'),
-            subtitle: _('The password is stored unencrypted in your local GNOME settings. Prefer an app-specific password.'),
-            icon_name: 'dialog-warning-symbolic',
+        const passwordStatusRow = new Adw.ActionRow({
+            title: _('GNOME Keyring'),
+            subtitle: _('Checking for a saved password…'),
+            icon_name: 'dialog-password-symbolic',
         });
-        emailGroup.add(passwordWarningRow);
+        const clearPasswordButton = new Gtk.Button({
+            label: _('Clear'),
+            valign: Gtk.Align.CENTER,
+        });
+        passwordStatusRow.add_suffix(clearPasswordButton);
+        emailGroup.add(passwordStatusRow);
+
+        const refreshPasswordStatus = async () => {
+            try {
+                const password = await lookupPassword();
+                passwordStatusRow.subtitle = password
+                    ? _('Password saved securely in GNOME Keyring')
+                    : _('No password saved');
+                clearPasswordButton.sensitive = Boolean(password);
+            } catch (error) {
+                passwordStatusRow.subtitle =
+                    _('Keyring error: %s').format(error.message);
+                clearPasswordButton.sensitive = false;
+            }
+        };
+
+        savePasswordButton.connect('clicked', async () => {
+            const password = smtpPasswordRow.text;
+            if (!password) {
+                passwordStatusRow.subtitle = _('Enter a password before saving');
+                return;
+            }
+
+            savePasswordButton.sensitive = false;
+            try {
+                await storePassword(password);
+                settings.set_string('smtp-password', '');
+                smtpPasswordRow.text = '';
+                passwordStatusRow.subtitle =
+                    _('Password saved securely in GNOME Keyring');
+                clearPasswordButton.sensitive = true;
+            } catch (error) {
+                passwordStatusRow.subtitle =
+                    _('Could not save password: %s').format(error.message);
+            } finally {
+                savePasswordButton.sensitive = true;
+            }
+        });
+
+        clearPasswordButton.connect('clicked', async () => {
+            clearPasswordButton.sensitive = false;
+            try {
+                await clearPassword();
+                settings.set_string('smtp-password', '');
+                smtpPasswordRow.text = '';
+                passwordStatusRow.subtitle = _('No password saved');
+            } catch (error) {
+                passwordStatusRow.subtitle =
+                    _('Could not clear password: %s').format(error.message);
+            }
+        });
+
+        const migrateLegacyPassword = async () => {
+            const legacyPassword = settings.get_string('smtp-password');
+            if (!legacyPassword) {
+                await refreshPasswordStatus();
+                return;
+            }
+
+            passwordStatusRow.subtitle =
+                _('Moving existing password to GNOME Keyring…');
+            try {
+                await storePassword(legacyPassword);
+                settings.set_string('smtp-password', '');
+                passwordStatusRow.subtitle =
+                    _('Password moved securely to GNOME Keyring');
+                clearPasswordButton.sensitive = true;
+            } catch (error) {
+                passwordStatusRow.subtitle =
+                    _('Password migration failed: %s').format(error.message);
+                clearPasswordButton.sensitive = false;
+            }
+        };
+        migrateLegacyPassword();
 
         const emailFromRow = new Adw.EntryRow({
             title: _('Sender address'),
@@ -407,7 +488,7 @@ export default class WebsiteMonitorPreferences extends ExtensionPreferences {
             smtpSecurityRow,
             smtpUsernameRow,
             smtpPasswordRow,
-            passwordWarningRow,
+            passwordStatusRow,
             emailFromRow,
             emailRecipientsRow,
         ]) {

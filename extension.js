@@ -11,6 +11,8 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
+import {lookupPassword, storePassword} from './secretStore.js';
+
 const State = Object.freeze({
     DISABLED: 'disabled',
     CHECKING: 'checking',
@@ -617,6 +619,17 @@ export default class WebsiteMonitorExtension extends Extension {
         return this._settings.get_string(key).replace(/[\r\n]/g, '').trim();
     }
 
+    async _getSmtpPassword() {
+        const legacyPassword = this._settings.get_string('smtp-password');
+        if (legacyPassword) {
+            await storePassword(legacyPassword);
+            this._settings.set_string('smtp-password', '');
+            return legacyPassword;
+        }
+
+        return await lookupPassword() ?? '';
+    }
+
     async _sendEmail(isTest) {
         try {
             const curl = GLib.find_program_in_path('curl');
@@ -625,7 +638,7 @@ export default class WebsiteMonitorExtension extends Extension {
 
             const host = this._emailSetting('smtp-host');
             const username = this._emailSetting('smtp-username');
-            const password = this._settings.get_string('smtp-password');
+            const password = await this._getSmtpPassword();
             const from = this._emailSetting('email-from');
             const recipients = this._emailSetting('email-recipients')
                 .split(',')

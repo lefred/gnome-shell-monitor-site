@@ -90,7 +90,7 @@
     </key>
     <key name="smtp-password" type="s">
       <default>''</default>
-      <summary>SMTP password</summary>
+      <summary>Legacy plaintext SMTP password pending keyring migration</summary>
     </key>
     <key name="email-from" type="s">
       <default>''</default>

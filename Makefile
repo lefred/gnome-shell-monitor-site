@@ -1,5 +1,5 @@
 UUID := website-monitor@lefred
-FILES := metadata.json extension.js prefs.js stylesheet.css schemas
+FILES := metadata.json extension.js prefs.js secretStore.js stylesheet.css schemas
 
 .PHONY: all schema package install clean
 
@@ -9,7 +9,7 @@ schema:
 	glib-compile-schemas schemas
 
 package: clean
-	gnome-extensions pack --force
+	gnome-extensions pack --force --extra-source=secretStore.js
 
 install: package
 	gnome-extensions install --force $(UUID).shell-extension.zip
